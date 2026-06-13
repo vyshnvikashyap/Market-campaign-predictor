@@ -309,7 +309,32 @@ def risk_profile(customer, proba):
             </p>
             <p>{customer['campaign']} calls made</p>
         </div>""", unsafe_allow_html=True)
+# ── SHAP Values ──────────────────────────────────────────────
+st.divider()
+st.markdown('<p class="section-header">🔍 Why This Prediction?</p>',
+            unsafe_allow_html=True)
 
+import shap
+import matplotlib.pyplot as plt
+
+# Calculate SHAP
+explainer  = shap.TreeExplainer(rf)
+sample     = pd.DataFrame([customer])
+sample_enc = pd.get_dummies(sample, columns=cat_cols, drop_first=True)
+sample_enc = sample_enc.reindex(columns=features, fill_value=0)
+
+shap_values = explainer.shap_values(sample_enc)
+
+# Plot
+fig, ax = plt.subplots(figsize=(10, 6))
+shap.summary_plot(
+    shap_values[1],
+    sample_enc,
+    plot_type = "bar",
+    show      = False
+)
+st.pyplot(fig)
+st.caption("🔴 Pushes towards YES  |  🔵 Pushes towards NO")
 # ── Header ───────────────────────────────────────────────────
 st.title("🏦 Bank Deposit Subscription Predictor")
 st.write("Predict whether a customer will subscribe to a term deposit")
