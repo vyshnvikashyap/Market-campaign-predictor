@@ -67,7 +67,7 @@ def predict(customer):
     proba      = rf.predict_proba(sample_sc)[0][1]
     return pred, proba
 
-def gauge_chart(proba):
+def gauge_chart(proba, key="gauge"):
     fig = go.Figure(go.Indicator(
         mode  = "gauge+number+delta",
         value = proba * 100,
@@ -267,8 +267,8 @@ with tab1:
         else:
             st.error(f"❌ Unlikely to Subscribe — Probability: {proba:.2%}")
 
-        # Gauge Chart
-        st.plotly_chart(gauge_chart(proba), use_container_width=True)
+        # Gauge Chart — unique key
+        st.plotly_chart(gauge_chart(proba), use_container_width=True, key="gauge_main")
 
         # Risk Profile
         risk_profile(customer, proba)
@@ -283,20 +283,20 @@ with tab1:
         with col1:
             whatif_duration = st.slider(
                 "📞 What if call duration was...",
-                min_value=0, max_value=3000, value=duration, step=30
+                min_value=0, max_value=3000, value=int(duration), step=30
             )
             whatif_balance = st.slider(
                 "💰 What if balance was...",
-                min_value=-5000, max_value=50000, value=balance, step=500
+                min_value=-5000, max_value=50000, value=int(balance), step=500
             )
         with col2:
             whatif_campaign = st.slider(
                 "📱 What if number of calls was...",
-                min_value=1, max_value=50, value=campaign, step=1
+                min_value=1, max_value=50, value=int(campaign), step=1
             )
             whatif_age = st.slider(
                 "👤 What if age was...",
-                min_value=18, max_value=95, value=age, step=1
+                min_value=18, max_value=95, value=int(age), step=1
             )
 
         whatif_customer = {
@@ -317,13 +317,14 @@ with tab1:
                     delta=f"{(whatif_proba - proba)*100:.1f}%")
         col3.metric("New Prediction", "✅ Yes" if whatif_pred == 1 else "❌ No")
 
+        # Side by side gauges — unique keys
         col1, col2 = st.columns(2)
         with col1:
             st.write("**Original**")
-            st.plotly_chart(gauge_chart(proba), use_container_width=True)
+            st.plotly_chart(gauge_chart(proba), use_container_width=True, key="gauge_original")
         with col2:
             st.write("**What-if**")
-            st.plotly_chart(gauge_chart(whatif_proba), use_container_width=True)
+            st.plotly_chart(gauge_chart(whatif_proba), use_container_width=True, key="gauge_whatif")
 
         # ── SHAP Values ───────────────────────────────────────
         st.divider()
@@ -429,7 +430,7 @@ with tab2:
                     marker = dict(colors=['#2ecc71', '#e74c3c'])
                 ))
                 fig1.update_layout(title='Subscription Distribution', height=350)
-                st.plotly_chart(fig1, use_container_width=True)
+                st.plotly_chart(fig1, use_container_width=True, key="batch_pie")
 
             with col2:
                 probs = results_df['Probability'].str.rstrip('%').astype(float)
@@ -442,7 +443,7 @@ with tab2:
                     xaxis_title='Probability (%)',
                     yaxis_title='Count', height=350
                 )
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, use_container_width=True, key="batch_hist")
 
             col3, col4 = st.columns(2)
 
@@ -461,7 +462,7 @@ with tab2:
                         title='Subscription Rate by Job',
                         xaxis_title='Subscription Rate (%)', height=400
                     )
-                    st.plotly_chart(fig3, use_container_width=True)
+                    st.plotly_chart(fig3, use_container_width=True, key="batch_job")
 
             with col4:
                 if 'age' in results_df.columns:
@@ -480,7 +481,7 @@ with tab2:
                         xaxis_title='Age',
                         yaxis_title='Probability (%)', height=400
                     )
-                    st.plotly_chart(fig4, use_container_width=True)
+                    st.plotly_chart(fig4, use_container_width=True, key="batch_age")
 
             col5, col6 = st.columns(2)
 
@@ -499,7 +500,7 @@ with tab2:
                         xaxis_title='Balance (€)',
                         yaxis_title='Probability (%)', height=400
                     )
-                    st.plotly_chart(fig5, use_container_width=True)
+                    st.plotly_chart(fig5, use_container_width=True, key="batch_balance")
 
             with col6:
                 if 'month' in results_df.columns:
@@ -519,7 +520,7 @@ with tab2:
                         xaxis_title='Month',
                         yaxis_title='Subscription Rate (%)', height=400
                     )
-                    st.plotly_chart(fig6, use_container_width=True)
+                    st.plotly_chart(fig6, use_container_width=True, key="batch_month")
 
             # ── Priority List ──────────────────────────────────
             st.divider()
@@ -598,15 +599,19 @@ with tab4:
 
         st.divider()
 
-        # REPLACE WITH THIS ✅
-       col1, col2 = st.columns(2)
-       with col1:
-          st.write("**Original**")
-          st.plotly_chart(gauge_chart(proba), use_container_width=True, key="gauge_original")
-       with col2:
-          st.write("**What-if**")
-          st.plotly_chart(gauge_chart(whatif_proba), use_container_width=True, key="gauge_whatif")
-      with col2:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            fig_pie = go.Figure(go.Pie(
+                labels = ['Will Subscribe ✅', 'Will Not ❌'],
+                values = [yes_count, no_count],
+                hole   = 0.4,
+                marker = dict(colors=['#2ecc71','#e74c3c'])
+            ))
+            fig_pie.update_layout(title='Overall Results', height=350)
+            st.plotly_chart(fig_pie, use_container_width=True, key="dash_pie")
+
+        with col2:
             fig_trend = go.Figure(go.Scatter(
                 x    = list(range(1, len(history_df)+1)),
                 y    = probs_hist,
@@ -619,7 +624,7 @@ with tab4:
                 xaxis_title='Prediction #',
                 yaxis_title='Probability (%)', height=350
             )
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(fig_trend, use_container_width=True, key="dash_trend")
 
         col3, col4 = st.columns(2)
 
@@ -638,7 +643,7 @@ with tab4:
                 xaxis_title='Age', yaxis_title='Count',
                 barmode='overlay', height=350
             )
-            st.plotly_chart(fig_age, use_container_width=True)
+            st.plotly_chart(fig_age, use_container_width=True, key="dash_age")
 
         with col4:
             job_counts = history_df.groupby(['Job','Result']).size().unstack(fill_value=0)
@@ -660,7 +665,7 @@ with tab4:
                 xaxis_title='Job', yaxis_title='Count',
                 barmode='group', height=350
             )
-            st.plotly_chart(fig_job, use_container_width=True)
+            st.plotly_chart(fig_job, use_container_width=True, key="dash_job")
 
     else:
         st.info("Make some predictions first to see dashboard! 📊")
