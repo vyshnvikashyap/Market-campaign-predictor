@@ -441,6 +441,100 @@ with tab2:
             results_df = pd.DataFrame(results)
             st.dataframe(results_df)
 
+            # ── What-if Analysis ─────────────────────────────────────────
+st.divider()
+st.markdown('<p class="section-header">🔄 What-if Analysis</p>',
+            unsafe_allow_html=True)
+st.write("See how changing values affects subscription probability")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    whatif_duration = st.slider(
+        "📞 What if call duration was...",
+        min_value  = 0,
+        max_value  = 3000,
+        value      = duration,
+        step       = 30
+    )
+    whatif_balance = st.slider(
+        "💰 What if balance was...",
+        min_value  = -5000,
+        max_value  = 50000,
+        value      = balance,
+        step       = 500
+    )
+
+with col2:
+    whatif_campaign = st.slider(
+        "📱 What if number of calls was...",
+        min_value = 1,
+        max_value = 50,
+        value     = campaign,
+        step      = 1
+    )
+    whatif_age = st.slider(
+        "👤 What if age was...",
+        min_value = 18,
+        max_value = 95,
+        value     = age,
+        step      = 1
+    )
+
+# Run what-if prediction
+whatif_customer = {
+    "age":       whatif_age,
+    "job":       job,
+    "marital":   marital,
+    "education": education,
+    "default":   default,
+    "balance":   whatif_balance,
+    "housing":   housing,
+    "loan":      loan,
+    "contact":   contact,
+    "day":       day,
+    "month":     month,
+    "duration":  whatif_duration,
+    "campaign":  whatif_campaign,
+    "pdays":     pdays,
+    "previous":  previous,
+    "poutcome":  poutcome
+}
+
+whatif_pred, whatif_proba = predict(whatif_customer)
+
+# Compare original vs whatif
+col1, col2, col3 = st.columns(3)
+
+col1.metric(
+    "Original Probability",
+    f"{proba:.2%}"
+)
+col2.metric(
+    "New Probability",
+    f"{whatif_proba:.2%}",
+    delta = f"{(whatif_proba - proba)*100:.1f}%"
+)
+col3.metric(
+    "New Prediction",
+    "✅ Yes" if whatif_pred == 1 else "❌ No"
+)
+
+# Side by side gauge
+col1, col2 = st.columns(2)
+with col1:
+    st.write("**Original**")
+    st.plotly_chart(
+        gauge_chart(proba),
+        use_container_width=True
+    )
+with col2:
+    st.write("**What-if**")
+    st.plotly_chart(
+        gauge_chart(whatif_proba),
+        use_container_width=True
+    )
+
             # Summary
             yes_count = sum(1 for r in results if r['Prediction'] == "✅ Yes")
             col1, col2, col3 = st.columns(3)
