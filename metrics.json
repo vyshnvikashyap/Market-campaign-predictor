@@ -1,9 +1,7 @@
-{
-  "accuracy": 0.861,
-  "precision": 0.821,
-  "recall": 0.743,
-  "f1": 0.780,
-  "roc_auc": 0.912,
-  "dataset_rows": 11162,
-  "dataset_features": 16
-}
+accuracy: 0.8584863412449619
+precision: 0.8265845070422535
+recall: 0.8875236294896031
+f1: 0.8559708295350957
+roc_auc: 0.9194940272694364
+rows: 11162
+features: 49
