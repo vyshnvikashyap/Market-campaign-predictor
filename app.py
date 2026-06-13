@@ -1,22 +1,10 @@
-# Find this line:
-tab1, tab2, tab3 = st.tabs([
-    "🔍 Single Prediction",
-    "📂 Batch Prediction",
-    "📜 Prediction History"
-])
-
-# Replace with:
-tab1, tab2, tab3, tab4 = st.tabs([
-    "🔍 Single Prediction",
-    "📂 Batch Prediction",
-    "📜 Prediction History",
-    "📊 Dashboard"
-])
 import streamlit as st
 import pandas as pd
 import joblib
 import plotly.graph_objects as go
 from datetime import datetime
+import shap
+import matplotlib.pyplot as plt
 
 # ── Page Config ──────────────────────────────────────────────
 st.set_page_config(
@@ -65,168 +53,6 @@ scaler   = joblib.load('scaler.pkl')
 features = joblib.load('features.pkl')
 cat_cols = joblib.load('cat_cols.pkl')
 
-# ── Sidebar — Model Metrics ──────────────────────────────────
-with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/bank.png", width=80)
-    st.title("🏦 Bank Predictor")
-    st.divider()
-    # ── What-if Analysis ─────────────────────────────────────────
-st.divider()
-st.markdown('<p class="section-header">🔄 What-if Analysis</p>',
-            unsafe_allow_html=True)
-st.write("See how changing values affects subscription probability")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    whatif_duration = st.slider(
-        "📞 What if call duration was...",
-        min_value  = 0,
-        max_value  = 3000,
-        value      = duration,
-        step       = 30
-    )
-    whatif_balance = st.slider(
-        "💰 What if balance was...",
-        min_value  = -5000,
-        max_value  = 50000,
-        value      = balance,
-        step       = 500
-    )
-
-with col2:
-    whatif_campaign = st.slider(
-        "📱 What if number of calls was...",
-        min_value = 1,
-        max_value = 50,
-        value     = campaign,
-        step      = 1
-    )
-    whatif_age = st.slider(
-        "👤 What if age was...",
-        min_value = 18,
-        max_value = 95,
-        value     = age,
-        step      = 1
-    )
-
-# Run what-if prediction
-whatif_customer = {
-    "age":       whatif_age,
-    "job":       job,
-    "marital":   marital,
-    "education": education,
-    "default":   default,
-    "balance":   whatif_balance,
-    "housing":   housing,
-    "loan":      loan,
-    "contact":   contact,
-    "day":       day,
-    "month":     month,
-    "duration":  whatif_duration,
-    "campaign":  whatif_campaign,
-    "pdays":     pdays,
-    "previous":  previous,
-    "poutcome":  poutcome
-}
-
-whatif_pred, whatif_proba = predict(whatif_customer)
-
-# Compare original vs whatif
-col1, col2, col3 = st.columns(3)
-
-col1.metric(
-    "Original Probability",
-    f"{proba:.2%}"
-)
-col2.metric(
-    "New Probability",
-    f"{whatif_proba:.2%}",
-    delta = f"{(whatif_proba - proba)*100:.1f}%"
-)
-col3.metric(
-    "New Prediction",
-    "✅ Yes" if whatif_pred == 1 else "❌ No"
-)
-
-# Side by side gauge
-col1, col2 = st.columns(2)
-with col1:
-    st.write("**Original**")
-    st.plotly_chart(
-        gauge_chart(proba),
-        use_container_width=True
-    )
-with col2:
-    st.write("**What-if**")
-    st.plotly_chart(
-        gauge_chart(whatif_proba),
-        use_container_width=True
-    )
-
-    # Model Info
-    st.markdown("### 🤖 Model Info")
-    st.info("""
-    **Model:** Random Forest
-    **Trees:** 100
-    **Task:** Binary Classification
-    """)
-    st.divider()
-
-    # Model Metrics
-    st.markdown("### 📊 Model Performance")
-
-    metrics = {
-        "Accuracy":  "89.2%",
-        "Precision": "82.1%",
-        "Recall":    "74.3%",
-        "F1 Score":  "78.0%",
-        "ROC AUC":   "91.2%"
-    }
-
-    for metric, value in metrics.items():
-        col1, col2 = st.columns(2)
-        col1.markdown(f"**{metric}**")
-        col2.markdown(f"`{value}`")
-
-    st.divider()
-
-    # Feature Importance Mini Chart
-    st.markdown("### 🎯 Top Features")
-    
-    importance_data = {
-        "Duration":  0.32,
-        "Balance":   0.18,
-        "Age":       0.14,
-        "Pdays":     0.10,
-        "Campaign":  0.08,
-        "Month":     0.07,
-        "Poutcome":  0.06,
-        "Job":       0.05
-    }
-
-    for feature, score in importance_data.items():
-        st.markdown(f"**{feature}**")
-        st.progress(score)
-        st.caption(f"Importance: {score:.2f}")
-
-    st.divider()
-
-    # Dataset Info
-    st.markdown("### 📁 Dataset Info")
-    st.success("""
-    **Dataset:** Bank Marketing
-    **Rows:** 45,211
-    **Features:** 16
-    **Target:** Deposit (Yes/No)
-    """)
-
-    st.divider()
-
-    # Footer
-    st.caption("Built with ❤️ using Streamlit")
-    st.caption("Model: Random Forest Classifier")
-
 # ── Initialize History ───────────────────────────────────────
 if 'history' not in st.session_state:
     st.session_state.history = []
@@ -270,7 +96,6 @@ def risk_profile(customer, proba):
                 unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
 
-    # Risk Level
     if proba >= 0.7:
         risk, color, emoji = "Low Risk",    "#2ecc71", "🟢"
     elif proba >= 0.4:
@@ -309,47 +134,81 @@ def risk_profile(customer, proba):
             </p>
             <p>{customer['campaign']} calls made</p>
         </div>""", unsafe_allow_html=True)
-# ── SHAP Values ──────────────────────────────────────────────
-st.divider()
-st.markdown('<p class="section-header">🔍 Why This Prediction?</p>',
-            unsafe_allow_html=True)
 
-import shap
-import matplotlib.pyplot as plt
+# ── Sidebar ───────────────────────────────────────────────────
+with st.sidebar:
+    st.image("https://img.icons8.com/fluency/96/bank.png", width=80)
+    st.title("🏦 Bank Predictor")
+    st.divider()
 
-# Calculate SHAP
-explainer  = shap.TreeExplainer(rf)
-sample     = pd.DataFrame([customer])
-sample_enc = pd.get_dummies(sample, columns=cat_cols, drop_first=True)
-sample_enc = sample_enc.reindex(columns=features, fill_value=0)
+    st.markdown("### 🤖 Model Info")
+    st.info("""
+    **Model:** Random Forest
+    **Trees:** 100
+    **Task:** Binary Classification
+    """)
+    st.divider()
 
-shap_values = explainer.shap_values(sample_enc)
+    st.markdown("### 📊 Model Performance")
+    metrics = {
+        "Accuracy":  "89.2%",
+        "Precision": "82.1%",
+        "Recall":    "74.3%",
+        "F1 Score":  "78.0%",
+        "ROC AUC":   "91.2%"
+    }
+    for metric, value in metrics.items():
+        c1, c2 = st.columns(2)
+        c1.markdown(f"**{metric}**")
+        c2.markdown(f"`{value}`")
 
-# Plot
-fig, ax = plt.subplots(figsize=(10, 6))
-shap.summary_plot(
-    shap_values[1],
-    sample_enc,
-    plot_type = "bar",
-    show      = False
-)
-st.pyplot(fig)
-st.caption("🔴 Pushes towards YES  |  🔵 Pushes towards NO")
-# ── Header ───────────────────────────────────────────────────
+    st.divider()
+
+    st.markdown("### 🎯 Top Features")
+    importance_data = {
+        "Duration":  0.32,
+        "Balance":   0.18,
+        "Age":       0.14,
+        "Pdays":     0.10,
+        "Campaign":  0.08,
+        "Month":     0.07,
+        "Poutcome":  0.06,
+        "Job":       0.05
+    }
+    for feature, score in importance_data.items():
+        st.markdown(f"**{feature}**")
+        st.progress(score)
+        st.caption(f"Importance: {score:.2f}")
+
+    st.divider()
+
+    st.markdown("### 📁 Dataset Info")
+    st.success("""
+    **Dataset:** Bank Marketing
+    **Rows:** 45,211
+    **Features:** 16
+    **Target:** Deposit (Yes/No)
+    """)
+    st.divider()
+    st.caption("Built with ❤️ using Streamlit")
+    st.caption("Model: Random Forest Classifier")
+
+# ── Header ────────────────────────────────────────────────────
 st.title("🏦 Bank Deposit Subscription Predictor")
 st.write("Predict whether a customer will subscribe to a term deposit")
 st.divider()
 
-# ── Tabs ─────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs([
+# ── Tabs ──────────────────────────────────────────────────────
+tab1, tab2, tab3, tab4 = st.tabs([
     "🔍 Single Prediction",
     "📂 Batch Prediction",
-    "📜 Prediction History"
+    "📜 Prediction History",
+    "📊 Dashboard"
 ])
 
-# ════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 # TAB 1 — Single Prediction
-# ════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 with tab1:
     st.markdown('<p class="section-header">👤 Customer Details</p>',
                 unsafe_allow_html=True)
@@ -414,6 +273,80 @@ with tab1:
         # Risk Profile
         risk_profile(customer, proba)
 
+        # ── What-if Analysis ──────────────────────────────────
+        st.divider()
+        st.markdown('<p class="section-header">🔄 What-if Analysis</p>',
+                    unsafe_allow_html=True)
+        st.write("See how changing values affects subscription probability")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            whatif_duration = st.slider(
+                "📞 What if call duration was...",
+                min_value=0, max_value=3000, value=duration, step=30
+            )
+            whatif_balance = st.slider(
+                "💰 What if balance was...",
+                min_value=-5000, max_value=50000, value=balance, step=500
+            )
+        with col2:
+            whatif_campaign = st.slider(
+                "📱 What if number of calls was...",
+                min_value=1, max_value=50, value=campaign, step=1
+            )
+            whatif_age = st.slider(
+                "👤 What if age was...",
+                min_value=18, max_value=95, value=age, step=1
+            )
+
+        whatif_customer = {
+            "age": whatif_age, "job": job, "marital": marital,
+            "education": education, "default": default,
+            "balance": whatif_balance, "housing": housing,
+            "loan": loan, "contact": contact, "day": day,
+            "month": month, "duration": whatif_duration,
+            "campaign": whatif_campaign, "pdays": pdays,
+            "previous": previous, "poutcome": poutcome
+        }
+
+        whatif_pred, whatif_proba = predict(whatif_customer)
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Original Probability", f"{proba:.2%}")
+        col2.metric("New Probability", f"{whatif_proba:.2%}",
+                    delta=f"{(whatif_proba - proba)*100:.1f}%")
+        col3.metric("New Prediction", "✅ Yes" if whatif_pred == 1 else "❌ No")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Original**")
+            st.plotly_chart(gauge_chart(proba), use_container_width=True)
+        with col2:
+            st.write("**What-if**")
+            st.plotly_chart(gauge_chart(whatif_proba), use_container_width=True)
+
+        # ── SHAP Values ───────────────────────────────────────
+        st.divider()
+        st.markdown('<p class="section-header">🔍 Why This Prediction?</p>',
+                    unsafe_allow_html=True)
+
+        try:
+            explainer   = shap.TreeExplainer(rf)
+            sample      = pd.DataFrame([customer])
+            sample_enc  = pd.get_dummies(sample, columns=cat_cols, drop_first=True)
+            sample_enc  = sample_enc.reindex(columns=features, fill_value=0)
+            shap_values = explainer.shap_values(sample_enc)
+
+            fig, ax = plt.subplots(figsize=(10, 6))
+            shap.summary_plot(
+                shap_values[1], sample_enc,
+                plot_type="bar", show=False
+            )
+            st.pyplot(fig)
+            st.caption("🔴 Pushes towards YES  |  🔵 Pushes towards NO")
+        except Exception as e:
+            st.warning(f"SHAP explanation unavailable: {e}")
+
         # Save to history
         st.session_state.history.append({
             "Time":        datetime.now().strftime("%H:%M:%S"),
@@ -425,15 +358,14 @@ with tab1:
             "Result":      "✅ Yes" if pred == 1 else "❌ No"
         })
 
-# ════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 # TAB 2 — Batch Prediction
-# ════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 with tab2:
     st.markdown('<p class="section-header">📂 Batch Prediction</p>',
                 unsafe_allow_html=True)
     st.write("Upload a CSV file with customer data to predict all at once")
 
-    # Download template
     template = pd.DataFrame(columns=[
         'age','job','marital','education','default','balance',
         'housing','loan','contact','day','month','duration',
@@ -456,118 +388,22 @@ with tab2:
         if st.button("🔍 Predict All"):
             results = []
             for _, row in df_batch.iterrows():
-                pred, proba = predict(row.to_dict())
+                p, pb = predict(row.to_dict())
                 results.append({
                     **row.to_dict(),
-                    'Probability': f"{proba:.2%}",
-                    'Prediction':  "✅ Yes" if pred == 1 else "❌ No"
+                    'Probability': f"{pb:.2%}",
+                    'Prediction':  "✅ Yes" if p == 1 else "❌ No"
                 })
 
             results_df = pd.DataFrame(results)
             st.dataframe(results_df)
 
-            # ── What-if Analysis ─────────────────────────────────────────
-st.divider()
-st.markdown('<p class="section-header">🔄 What-if Analysis</p>',
-            unsafe_allow_html=True)
-st.write("See how changing values affects subscription probability")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    whatif_duration = st.slider(
-        "📞 What if call duration was...",
-        min_value  = 0,
-        max_value  = 3000,
-        value      = duration,
-        step       = 30
-    )
-    whatif_balance = st.slider(
-        "💰 What if balance was...",
-        min_value  = -5000,
-        max_value  = 50000,
-        value      = balance,
-        step       = 500
-    )
-
-with col2:
-    whatif_campaign = st.slider(
-        "📱 What if number of calls was...",
-        min_value = 1,
-        max_value = 50,
-        value     = campaign,
-        step      = 1
-    )
-    whatif_age = st.slider(
-        "👤 What if age was...",
-        min_value = 18,
-        max_value = 95,
-        value     = age,
-        step      = 1
-    )
-
-# Run what-if prediction
-whatif_customer = {
-    "age":       whatif_age,
-    "job":       job,
-    "marital":   marital,
-    "education": education,
-    "default":   default,
-    "balance":   whatif_balance,
-    "housing":   housing,
-    "loan":      loan,
-    "contact":   contact,
-    "day":       day,
-    "month":     month,
-    "duration":  whatif_duration,
-    "campaign":  whatif_campaign,
-    "pdays":     pdays,
-    "previous":  previous,
-    "poutcome":  poutcome
-}
-
-whatif_pred, whatif_proba = predict(whatif_customer)
-
-# Compare original vs whatif
-col1, col2, col3 = st.columns(3)
-
-col1.metric(
-    "Original Probability",
-    f"{proba:.2%}"
-)
-col2.metric(
-    "New Probability",
-    f"{whatif_proba:.2%}",
-    delta = f"{(whatif_proba - proba)*100:.1f}%"
-)
-col3.metric(
-    "New Prediction",
-    "✅ Yes" if whatif_pred == 1 else "❌ No"
-)
-
-# Side by side gauge
-col1, col2 = st.columns(2)
-with col1:
-    st.write("**Original**")
-    st.plotly_chart(
-        gauge_chart(proba),
-        use_container_width=True
-    )
-with col2:
-    st.write("**What-if**")
-    st.plotly_chart(
-        gauge_chart(whatif_proba),
-        use_container_width=True
-    )
-
-            # Summary
             yes_count = sum(1 for r in results if r['Prediction'] == "✅ Yes")
             col1, col2, col3 = st.columns(3)
             col1.metric("Total Customers", len(results))
             col2.metric("Will Subscribe",  yes_count)
             col3.metric("Won't Subscribe", len(results) - yes_count)
 
-            # Download results
             st.download_button(
                 "📥 Download Results",
                 results_df.to_csv(index=False),
@@ -575,9 +411,152 @@ with col2:
                 "text/csv"
             )
 
-# ════════════════════════════════════════════════════════════
+            # ── Charts ────────────────────────────────────────
+            st.divider()
+            st.markdown('<p class="section-header">📊 Batch Analysis Charts</p>',
+                        unsafe_allow_html=True)
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                fig1 = go.Figure(go.Pie(
+                    labels = ['Will Subscribe ✅', 'Will Not Subscribe ❌'],
+                    values = [
+                        (results_df['Prediction'] == '✅ Yes').sum(),
+                        (results_df['Prediction'] == '❌ No').sum()
+                    ],
+                    hole   = 0.4,
+                    marker = dict(colors=['#2ecc71', '#e74c3c'])
+                ))
+                fig1.update_layout(title='Subscription Distribution', height=350)
+                st.plotly_chart(fig1, use_container_width=True)
+
+            with col2:
+                probs = results_df['Probability'].str.rstrip('%').astype(float)
+                fig2  = go.Figure(go.Histogram(
+                    x=probs, nbinsx=20,
+                    marker_color='#3498db', opacity=0.8
+                ))
+                fig2.update_layout(
+                    title='Probability Distribution',
+                    xaxis_title='Probability (%)',
+                    yaxis_title='Count', height=350
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+
+            col3, col4 = st.columns(2)
+
+            with col3:
+                if 'job' in results_df.columns:
+                    job_rate = results_df.groupby('job').apply(
+                        lambda x: (x['Prediction'] == '✅ Yes').mean() * 100
+                    ).sort_values(ascending=True)
+                    fig3 = go.Figure(go.Bar(
+                        x=job_rate.values, y=job_rate.index,
+                        orientation='h', marker_color='#9b59b6',
+                        text=[f'{v:.1f}%' for v in job_rate.values],
+                        textposition='outside'
+                    ))
+                    fig3.update_layout(
+                        title='Subscription Rate by Job',
+                        xaxis_title='Subscription Rate (%)', height=400
+                    )
+                    st.plotly_chart(fig3, use_container_width=True)
+
+            with col4:
+                if 'age' in results_df.columns:
+                    fig4 = go.Figure(go.Scatter(
+                        x=results_df['age'], y=probs,
+                        mode='markers',
+                        marker=dict(
+                            color=probs, colorscale='RdYlGn',
+                            size=8, showscale=True,
+                            colorbar=dict(title='Probability %')
+                        ),
+                        text=results_df['Prediction']
+                    ))
+                    fig4.update_layout(
+                        title='Age vs Subscription Probability',
+                        xaxis_title='Age',
+                        yaxis_title='Probability (%)', height=400
+                    )
+                    st.plotly_chart(fig4, use_container_width=True)
+
+            col5, col6 = st.columns(2)
+
+            with col5:
+                if 'balance' in results_df.columns:
+                    fig5 = go.Figure(go.Scatter(
+                        x=results_df['balance'], y=probs,
+                        mode='markers',
+                        marker=dict(
+                            color=probs, colorscale='Blues',
+                            size=8, showscale=True
+                        )
+                    ))
+                    fig5.update_layout(
+                        title='Balance vs Subscription Probability',
+                        xaxis_title='Balance (€)',
+                        yaxis_title='Probability (%)', height=400
+                    )
+                    st.plotly_chart(fig5, use_container_width=True)
+
+            with col6:
+                if 'month' in results_df.columns:
+                    month_order = ['jan','feb','mar','apr','may','jun',
+                                   'jul','aug','sep','oct','nov','dec']
+                    month_rate  = results_df.groupby('month').apply(
+                        lambda x: (x['Prediction'] == '✅ Yes').mean() * 100
+                    ).reindex(month_order).dropna()
+                    fig6 = go.Figure(go.Bar(
+                        x=month_rate.index, y=month_rate.values,
+                        marker_color='#e67e22',
+                        text=[f'{v:.1f}%' for v in month_rate.values],
+                        textposition='outside'
+                    ))
+                    fig6.update_layout(
+                        title='Subscription Rate by Month',
+                        xaxis_title='Month',
+                        yaxis_title='Subscription Rate (%)', height=400
+                    )
+                    st.plotly_chart(fig6, use_container_width=True)
+
+            # ── Priority List ──────────────────────────────────
+            st.divider()
+            st.markdown('<p class="section-header">🎯 Priority Customer List</p>',
+                        unsafe_allow_html=True)
+
+            results_df['Prob_float'] = results_df['Probability'].str.rstrip('%').astype(float)
+
+            def get_tier(prob):
+                if prob >= 70:   return "🔥 Hot Lead"
+                elif prob >= 50: return "⭐ Warm Lead"
+                elif prob >= 30: return "❄️ Cold Lead"
+                else:            return "❌ Very Unlikely"
+
+            results_df['Priority'] = results_df['Prob_float'].apply(get_tier)
+            priority_df = results_df.sort_values('Prob_float', ascending=False)
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("🔥 Hot Leads",  (results_df['Priority'] == '🔥 Hot Lead').sum())
+            col2.metric("⭐ Warm Leads", (results_df['Priority'] == '⭐ Warm Lead').sum())
+            col3.metric("❄️ Cold Leads", (results_df['Priority'] == '❄️ Cold Lead').sum())
+
+            st.dataframe(
+                priority_df[['Probability','Priority','Prediction']],
+                use_container_width=True
+            )
+
+            st.download_button(
+                "📥 Download Priority List",
+                priority_df.to_csv(index=False),
+                "priority_customers.csv",
+                "text/csv"
+            )
+
+# ═════════════════════════════════════════════════════════════
 # TAB 3 — Prediction History
-# ════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 with tab3:
     st.markdown('<p class="section-header">📜 Prediction History</p>',
                 unsafe_allow_html=True)
@@ -597,9 +576,9 @@ with tab3:
     else:
         st.info("No predictions yet — go to Single Prediction tab to start!")
 
-# ════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 # TAB 4 — Dashboard
-# ════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════
 with tab4:
     st.markdown('<p class="section-header">📊 Prediction Dashboard</p>',
                 unsafe_allow_html=True)
@@ -608,7 +587,6 @@ with tab4:
         history_df = pd.DataFrame(st.session_state.history)
         probs_hist = history_df['Probability'].str.rstrip('%').astype(float)
 
-        # ── Top Metrics ──────────────────────────────────────
         col1, col2, col3, col4 = st.columns(4)
         yes_count = (history_df['Result'] == '✅ Yes').sum()
         no_count  = (history_df['Result'] == '❌ No').sum()
@@ -622,7 +600,6 @@ with tab4:
 
         col1, col2 = st.columns(2)
 
-        # ── Pie Chart ────────────────────────────────────────
         with col1:
             fig_pie = go.Figure(go.Pie(
                 labels = ['Will Subscribe ✅', 'Will Not ❌'],
@@ -630,13 +607,9 @@ with tab4:
                 hole   = 0.4,
                 marker = dict(colors=['#2ecc71','#e74c3c'])
             ))
-            fig_pie.update_layout(
-                title  = 'Overall Results',
-                height = 350
-            )
+            fig_pie.update_layout(title='Overall Results', height=350)
             st.plotly_chart(fig_pie, use_container_width=True)
 
-        # ── Probability Trend ────────────────────────────────
         with col2:
             fig_trend = go.Figure(go.Scatter(
                 x    = list(range(1, len(history_df)+1)),
@@ -646,178 +619,50 @@ with tab4:
                 marker = dict(size=8)
             ))
             fig_trend.update_layout(
-                title       = 'Probability Trend Over Time',
-                xaxis_title = 'Prediction #',
-                yaxis_title = 'Probability (%)',
-                height      = 350
+                title='Probability Trend Over Time',
+                xaxis_title='Prediction #',
+                yaxis_title='Probability (%)', height=350
             )
             st.plotly_chart(fig_trend, use_container_width=True)
 
         col3, col4 = st.columns(2)
 
-        # ── Age Distribution ─────────────────────────────────
         with col3:
             fig_age = go.Figure()
             fig_age.add_trace(go.Histogram(
-                x    = history_df[history_df['Result']=='✅ Yes']['Age'],
-                name = 'Subscribed',
-                marker_color = '#2ecc71',
-                opacity = 0.7
+                x=history_df[history_df['Result']=='✅ Yes']['Age'],
+                name='Subscribed', marker_color='#2ecc71', opacity=0.7
             ))
             fig_age.add_trace(go.Histogram(
-                x    = history_df[history_df['Result']=='❌ No']['Age'],
-                name = 'Not Subscribed',
-                marker_color = '#e74c3c',
-                opacity = 0.7
+                x=history_df[history_df['Result']=='❌ No']['Age'],
+                name='Not Subscribed', marker_color='#e74c3c', opacity=0.7
             ))
             fig_age.update_layout(
-                title       = 'Age Distribution by Result',
-                xaxis_title = 'Age',
-                yaxis_title = 'Count',
-                barmode     = 'overlay',
-                height      = 350
+                title='Age Distribution by Result',
+                xaxis_title='Age', yaxis_title='Count',
+                barmode='overlay', height=350
             )
             st.plotly_chart(fig_age, use_container_width=True)
 
-        # ── Job Distribution ─────────────────────────────────
         with col4:
             job_counts = history_df.groupby(['Job','Result']).size().unstack(fill_value=0)
-            fig_job = go.Figure()
+            fig_job    = go.Figure()
 
             if '✅ Yes' in job_counts.columns:
                 fig_job.add_trace(go.Bar(
-                    name = 'Subscribed',
-                    x    = job_counts.index,
-                    y    = job_counts['✅ Yes'],
-                    marker_color = '#2ecc71'
+                    name='Subscribed', x=job_counts.index,
+                    y=job_counts['✅ Yes'], marker_color='#2ecc71'
                 ))
             if '❌ No' in job_counts.columns:
                 fig_job.add_trace(go.Bar(
-                    name = 'Not Subscribed',
-                    x    = job_counts.index,
-                    y    = job_counts['❌ No'],
-                    marker_color = '#e74c3c'
+                    name='Not Subscribed', x=job_counts.index,
+                    y=job_counts['❌ No'], marker_color='#e74c3c'
                 ))
 
             fig_job.update_layout(
-                title       = 'Results by Job',
-                xaxis_title = 'Job',
-                yaxis_title = 'Count',
-                barmode     = 'group',
-                height      = 350
-            )
-            st.plotly_chart(fig_job, use_container_width=True)
-
-    else:
-        st.info("Make some predictions first to see dashboard! 📊")
-        # ════════════════════════════════════════════════════════════
-# TAB 4 — Dashboard
-# ════════════════════════════════════════════════════════════
-with tab4:
-    st.markdown('<p class="section-header">📊 Prediction Dashboard</p>',
-                unsafe_allow_html=True)
-
-    if st.session_state.history:
-        history_df = pd.DataFrame(st.session_state.history)
-        probs_hist = history_df['Probability'].str.rstrip('%').astype(float)
-
-        # ── Top Metrics ──────────────────────────────────────
-        col1, col2, col3, col4 = st.columns(4)
-        yes_count = (history_df['Result'] == '✅ Yes').sum()
-        no_count  = (history_df['Result'] == '❌ No').sum()
-
-        col1.metric("Total Predictions", len(history_df))
-        col2.metric("Subscriptions",     yes_count)
-        col3.metric("Rejections",        no_count)
-        col4.metric("Success Rate",      f"{yes_count/len(history_df):.1%}")
-
-        st.divider()
-
-        col1, col2 = st.columns(2)
-
-        # ── Pie Chart ────────────────────────────────────────
-        with col1:
-            fig_pie = go.Figure(go.Pie(
-                labels = ['Will Subscribe ✅', 'Will Not ❌'],
-                values = [yes_count, no_count],
-                hole   = 0.4,
-                marker = dict(colors=['#2ecc71','#e74c3c'])
-            ))
-            fig_pie.update_layout(
-                title  = 'Overall Results',
-                height = 350
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-        # ── Probability Trend ────────────────────────────────
-        with col2:
-            fig_trend = go.Figure(go.Scatter(
-                x    = list(range(1, len(history_df)+1)),
-                y    = probs_hist,
-                mode = 'lines+markers',
-                line = dict(color='#3498db', width=2),
-                marker = dict(size=8)
-            ))
-            fig_trend.update_layout(
-                title       = 'Probability Trend Over Time',
-                xaxis_title = 'Prediction #',
-                yaxis_title = 'Probability (%)',
-                height      = 350
-            )
-            st.plotly_chart(fig_trend, use_container_width=True)
-
-        col3, col4 = st.columns(2)
-
-        # ── Age Distribution ─────────────────────────────────
-        with col3:
-            fig_age = go.Figure()
-            fig_age.add_trace(go.Histogram(
-                x    = history_df[history_df['Result']=='✅ Yes']['Age'],
-                name = 'Subscribed',
-                marker_color = '#2ecc71',
-                opacity = 0.7
-            ))
-            fig_age.add_trace(go.Histogram(
-                x    = history_df[history_df['Result']=='❌ No']['Age'],
-                name = 'Not Subscribed',
-                marker_color = '#e74c3c',
-                opacity = 0.7
-            ))
-            fig_age.update_layout(
-                title       = 'Age Distribution by Result',
-                xaxis_title = 'Age',
-                yaxis_title = 'Count',
-                barmode     = 'overlay',
-                height      = 350
-            )
-            st.plotly_chart(fig_age, use_container_width=True)
-
-        # ── Job Distribution ─────────────────────────────────
-        with col4:
-            job_counts = history_df.groupby(['Job','Result']).size().unstack(fill_value=0)
-            fig_job = go.Figure()
-
-            if '✅ Yes' in job_counts.columns:
-                fig_job.add_trace(go.Bar(
-                    name = 'Subscribed',
-                    x    = job_counts.index,
-                    y    = job_counts['✅ Yes'],
-                    marker_color = '#2ecc71'
-                ))
-            if '❌ No' in job_counts.columns:
-                fig_job.add_trace(go.Bar(
-                    name = 'Not Subscribed',
-                    x    = job_counts.index,
-                    y    = job_counts['❌ No'],
-                    marker_color = '#e74c3c'
-                ))
-
-            fig_job.update_layout(
-                title       = 'Results by Job',
-                xaxis_title = 'Job',
-                yaxis_title = 'Count',
-                barmode     = 'group',
-                height      = 350
+                title='Results by Job',
+                xaxis_title='Job', yaxis_title='Count',
+                barmode='group', height=350
             )
             st.plotly_chart(fig_job, use_container_width=True)
 
