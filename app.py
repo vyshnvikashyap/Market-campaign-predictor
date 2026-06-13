@@ -598,17 +598,14 @@ with tab4:
 
         st.divider()
 
+        # REPLACE WITH THIS ✅
         col1, col2 = st.columns(2)
-
-        with col1:
-            fig_pie = go.Figure(go.Pie(
-                labels = ['Will Subscribe ✅', 'Will Not ❌'],
-                values = [yes_count, no_count],
-                hole   = 0.4,
-                marker = dict(colors=['#2ecc71','#e74c3c'])
-            ))
-            fig_pie.update_layout(title='Overall Results', height=350)
-            st.plotly_chart(fig_pie, use_container_width=True)
+         with col1:
+     st.write("**Original**")
+      st.plotly_chart(gauge_chart(proba), use_container_width=True, key="gauge_original")
+        with col2:
+    st.write("**What-if**")
+    st.plotly_chart(gauge_chart(whatif_proba), use_container_width=True, key="gauge_whatif")
 
         with col2:
             fig_trend = go.Figure(go.Scatter(
