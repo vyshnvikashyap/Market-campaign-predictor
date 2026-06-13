@@ -1,3 +1,17 @@
+# Find this line:
+tab1, tab2, tab3 = st.tabs([
+    "🔍 Single Prediction",
+    "📂 Batch Prediction",
+    "📜 Prediction History"
+])
+
+# Replace with:
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🔍 Single Prediction",
+    "📂 Batch Prediction",
+    "📜 Prediction History",
+    "📊 Dashboard"
+])
 import streamlit as st
 import pandas as pd
 import joblib
@@ -56,6 +70,99 @@ with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/bank.png", width=80)
     st.title("🏦 Bank Predictor")
     st.divider()
+    # ── What-if Analysis ─────────────────────────────────────────
+st.divider()
+st.markdown('<p class="section-header">🔄 What-if Analysis</p>',
+            unsafe_allow_html=True)
+st.write("See how changing values affects subscription probability")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    whatif_duration = st.slider(
+        "📞 What if call duration was...",
+        min_value  = 0,
+        max_value  = 3000,
+        value      = duration,
+        step       = 30
+    )
+    whatif_balance = st.slider(
+        "💰 What if balance was...",
+        min_value  = -5000,
+        max_value  = 50000,
+        value      = balance,
+        step       = 500
+    )
+
+with col2:
+    whatif_campaign = st.slider(
+        "📱 What if number of calls was...",
+        min_value = 1,
+        max_value = 50,
+        value     = campaign,
+        step      = 1
+    )
+    whatif_age = st.slider(
+        "👤 What if age was...",
+        min_value = 18,
+        max_value = 95,
+        value     = age,
+        step      = 1
+    )
+
+# Run what-if prediction
+whatif_customer = {
+    "age":       whatif_age,
+    "job":       job,
+    "marital":   marital,
+    "education": education,
+    "default":   default,
+    "balance":   whatif_balance,
+    "housing":   housing,
+    "loan":      loan,
+    "contact":   contact,
+    "day":       day,
+    "month":     month,
+    "duration":  whatif_duration,
+    "campaign":  whatif_campaign,
+    "pdays":     pdays,
+    "previous":  previous,
+    "poutcome":  poutcome
+}
+
+whatif_pred, whatif_proba = predict(whatif_customer)
+
+# Compare original vs whatif
+col1, col2, col3 = st.columns(3)
+
+col1.metric(
+    "Original Probability",
+    f"{proba:.2%}"
+)
+col2.metric(
+    "New Probability",
+    f"{whatif_proba:.2%}",
+    delta = f"{(whatif_proba - proba)*100:.1f}%"
+)
+col3.metric(
+    "New Prediction",
+    "✅ Yes" if whatif_pred == 1 else "❌ No"
+)
+
+# Side by side gauge
+col1, col2 = st.columns(2)
+with col1:
+    st.write("**Original**")
+    st.plotly_chart(
+        gauge_chart(proba),
+        use_container_width=True
+    )
+with col2:
+    st.write("**What-if**")
+    st.plotly_chart(
+        gauge_chart(whatif_proba),
+        use_container_width=True
+    )
 
     # Model Info
     st.markdown("### 🤖 Model Info")
@@ -370,3 +477,230 @@ with tab3:
             st.rerun()
     else:
         st.info("No predictions yet — go to Single Prediction tab to start!")
+
+# ════════════════════════════════════════════════════════════
+# TAB 4 — Dashboard
+# ════════════════════════════════════════════════════════════
+with tab4:
+    st.markdown('<p class="section-header">📊 Prediction Dashboard</p>',
+                unsafe_allow_html=True)
+
+    if st.session_state.history:
+        history_df = pd.DataFrame(st.session_state.history)
+        probs_hist = history_df['Probability'].str.rstrip('%').astype(float)
+
+        # ── Top Metrics ──────────────────────────────────────
+        col1, col2, col3, col4 = st.columns(4)
+        yes_count = (history_df['Result'] == '✅ Yes').sum()
+        no_count  = (history_df['Result'] == '❌ No').sum()
+
+        col1.metric("Total Predictions", len(history_df))
+        col2.metric("Subscriptions",     yes_count)
+        col3.metric("Rejections",        no_count)
+        col4.metric("Success Rate",      f"{yes_count/len(history_df):.1%}")
+
+        st.divider()
+
+        col1, col2 = st.columns(2)
+
+        # ── Pie Chart ────────────────────────────────────────
+        with col1:
+            fig_pie = go.Figure(go.Pie(
+                labels = ['Will Subscribe ✅', 'Will Not ❌'],
+                values = [yes_count, no_count],
+                hole   = 0.4,
+                marker = dict(colors=['#2ecc71','#e74c3c'])
+            ))
+            fig_pie.update_layout(
+                title  = 'Overall Results',
+                height = 350
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        # ── Probability Trend ────────────────────────────────
+        with col2:
+            fig_trend = go.Figure(go.Scatter(
+                x    = list(range(1, len(history_df)+1)),
+                y    = probs_hist,
+                mode = 'lines+markers',
+                line = dict(color='#3498db', width=2),
+                marker = dict(size=8)
+            ))
+            fig_trend.update_layout(
+                title       = 'Probability Trend Over Time',
+                xaxis_title = 'Prediction #',
+                yaxis_title = 'Probability (%)',
+                height      = 350
+            )
+            st.plotly_chart(fig_trend, use_container_width=True)
+
+        col3, col4 = st.columns(2)
+
+        # ── Age Distribution ─────────────────────────────────
+        with col3:
+            fig_age = go.Figure()
+            fig_age.add_trace(go.Histogram(
+                x    = history_df[history_df['Result']=='✅ Yes']['Age'],
+                name = 'Subscribed',
+                marker_color = '#2ecc71',
+                opacity = 0.7
+            ))
+            fig_age.add_trace(go.Histogram(
+                x    = history_df[history_df['Result']=='❌ No']['Age'],
+                name = 'Not Subscribed',
+                marker_color = '#e74c3c',
+                opacity = 0.7
+            ))
+            fig_age.update_layout(
+                title       = 'Age Distribution by Result',
+                xaxis_title = 'Age',
+                yaxis_title = 'Count',
+                barmode     = 'overlay',
+                height      = 350
+            )
+            st.plotly_chart(fig_age, use_container_width=True)
+
+        # ── Job Distribution ─────────────────────────────────
+        with col4:
+            job_counts = history_df.groupby(['Job','Result']).size().unstack(fill_value=0)
+            fig_job = go.Figure()
+
+            if '✅ Yes' in job_counts.columns:
+                fig_job.add_trace(go.Bar(
+                    name = 'Subscribed',
+                    x    = job_counts.index,
+                    y    = job_counts['✅ Yes'],
+                    marker_color = '#2ecc71'
+                ))
+            if '❌ No' in job_counts.columns:
+                fig_job.add_trace(go.Bar(
+                    name = 'Not Subscribed',
+                    x    = job_counts.index,
+                    y    = job_counts['❌ No'],
+                    marker_color = '#e74c3c'
+                ))
+
+            fig_job.update_layout(
+                title       = 'Results by Job',
+                xaxis_title = 'Job',
+                yaxis_title = 'Count',
+                barmode     = 'group',
+                height      = 350
+            )
+            st.plotly_chart(fig_job, use_container_width=True)
+
+    else:
+        st.info("Make some predictions first to see dashboard! 📊")
+        # ════════════════════════════════════════════════════════════
+# TAB 4 — Dashboard
+# ════════════════════════════════════════════════════════════
+with tab4:
+    st.markdown('<p class="section-header">📊 Prediction Dashboard</p>',
+                unsafe_allow_html=True)
+
+    if st.session_state.history:
+        history_df = pd.DataFrame(st.session_state.history)
+        probs_hist = history_df['Probability'].str.rstrip('%').astype(float)
+
+        # ── Top Metrics ──────────────────────────────────────
+        col1, col2, col3, col4 = st.columns(4)
+        yes_count = (history_df['Result'] == '✅ Yes').sum()
+        no_count  = (history_df['Result'] == '❌ No').sum()
+
+        col1.metric("Total Predictions", len(history_df))
+        col2.metric("Subscriptions",     yes_count)
+        col3.metric("Rejections",        no_count)
+        col4.metric("Success Rate",      f"{yes_count/len(history_df):.1%}")
+
+        st.divider()
+
+        col1, col2 = st.columns(2)
+
+        # ── Pie Chart ────────────────────────────────────────
+        with col1:
+            fig_pie = go.Figure(go.Pie(
+                labels = ['Will Subscribe ✅', 'Will Not ❌'],
+                values = [yes_count, no_count],
+                hole   = 0.4,
+                marker = dict(colors=['#2ecc71','#e74c3c'])
+            ))
+            fig_pie.update_layout(
+                title  = 'Overall Results',
+                height = 350
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        # ── Probability Trend ────────────────────────────────
+        with col2:
+            fig_trend = go.Figure(go.Scatter(
+                x    = list(range(1, len(history_df)+1)),
+                y    = probs_hist,
+                mode = 'lines+markers',
+                line = dict(color='#3498db', width=2),
+                marker = dict(size=8)
+            ))
+            fig_trend.update_layout(
+                title       = 'Probability Trend Over Time',
+                xaxis_title = 'Prediction #',
+                yaxis_title = 'Probability (%)',
+                height      = 350
+            )
+            st.plotly_chart(fig_trend, use_container_width=True)
+
+        col3, col4 = st.columns(2)
+
+        # ── Age Distribution ─────────────────────────────────
+        with col3:
+            fig_age = go.Figure()
+            fig_age.add_trace(go.Histogram(
+                x    = history_df[history_df['Result']=='✅ Yes']['Age'],
+                name = 'Subscribed',
+                marker_color = '#2ecc71',
+                opacity = 0.7
+            ))
+            fig_age.add_trace(go.Histogram(
+                x    = history_df[history_df['Result']=='❌ No']['Age'],
+                name = 'Not Subscribed',
+                marker_color = '#e74c3c',
+                opacity = 0.7
+            ))
+            fig_age.update_layout(
+                title       = 'Age Distribution by Result',
+                xaxis_title = 'Age',
+                yaxis_title = 'Count',
+                barmode     = 'overlay',
+                height      = 350
+            )
+            st.plotly_chart(fig_age, use_container_width=True)
+
+        # ── Job Distribution ─────────────────────────────────
+        with col4:
+            job_counts = history_df.groupby(['Job','Result']).size().unstack(fill_value=0)
+            fig_job = go.Figure()
+
+            if '✅ Yes' in job_counts.columns:
+                fig_job.add_trace(go.Bar(
+                    name = 'Subscribed',
+                    x    = job_counts.index,
+                    y    = job_counts['✅ Yes'],
+                    marker_color = '#2ecc71'
+                ))
+            if '❌ No' in job_counts.columns:
+                fig_job.add_trace(go.Bar(
+                    name = 'Not Subscribed',
+                    x    = job_counts.index,
+                    y    = job_counts['❌ No'],
+                    marker_color = '#e74c3c'
+                ))
+
+            fig_job.update_layout(
+                title       = 'Results by Job',
+                xaxis_title = 'Job',
+                yaxis_title = 'Count',
+                barmode     = 'group',
+                height      = 350
+            )
+            st.plotly_chart(fig_job, use_container_width=True)
+
+    else:
+        st.info("Make some predictions first to see dashboard! 📊")
