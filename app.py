@@ -599,14 +599,13 @@ with tab4:
         st.divider()
 
         # REPLACE WITH THIS ✅
-        col1, col2 = st.columns(2)
-         with col1:
-     st.write("**Original**")
-      st.plotly_chart(gauge_chart(proba), use_container_width=True, key="gauge_original")
-        with col2:
+col1, col2 = st.columns(2)
+with col1:
+    st.write("**Original**")
+    st.plotly_chart(gauge_chart(proba), use_container_width=True, key="gauge_original")
+with col2:
     st.write("**What-if**")
     st.plotly_chart(gauge_chart(whatif_proba), use_container_width=True, key="gauge_whatif")
-
         with col2:
             fig_trend = go.Figure(go.Scatter(
                 x    = list(range(1, len(history_df)+1)),
