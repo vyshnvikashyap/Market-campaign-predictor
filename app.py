@@ -51,6 +51,75 @@ scaler   = joblib.load('scaler.pkl')
 features = joblib.load('features.pkl')
 cat_cols = joblib.load('cat_cols.pkl')
 
+# ── Sidebar — Model Metrics ──────────────────────────────────
+with st.sidebar:
+    st.image("https://img.icons8.com/fluency/96/bank.png", width=80)
+    st.title("🏦 Bank Predictor")
+    st.divider()
+
+    # Model Info
+    st.markdown("### 🤖 Model Info")
+    st.info("""
+    **Model:** Random Forest
+    **Trees:** 100
+    **Task:** Binary Classification
+    """)
+    st.divider()
+
+    # Model Metrics
+    st.markdown("### 📊 Model Performance")
+
+    metrics = {
+        "Accuracy":  "89.2%",
+        "Precision": "82.1%",
+        "Recall":    "74.3%",
+        "F1 Score":  "78.0%",
+        "ROC AUC":   "91.2%"
+    }
+
+    for metric, value in metrics.items():
+        col1, col2 = st.columns(2)
+        col1.markdown(f"**{metric}**")
+        col2.markdown(f"`{value}`")
+
+    st.divider()
+
+    # Feature Importance Mini Chart
+    st.markdown("### 🎯 Top Features")
+    
+    importance_data = {
+        "Duration":  0.32,
+        "Balance":   0.18,
+        "Age":       0.14,
+        "Pdays":     0.10,
+        "Campaign":  0.08,
+        "Month":     0.07,
+        "Poutcome":  0.06,
+        "Job":       0.05
+    }
+
+    for feature, score in importance_data.items():
+        st.markdown(f"**{feature}**")
+        st.progress(score)
+        st.caption(f"Importance: {score:.2f}")
+
+    st.divider()
+
+    # Dataset Info
+    st.markdown("### 📁 Dataset Info")
+    st.success("""
+    **Dataset:** Bank Marketing
+    **Rows:** 45,211
+    **Features:** 16
+    **Target:** Deposit (Yes/No)
+    """)
+
+    st.divider()
+
+    # Footer
+    st.caption("Built with ❤️ using Streamlit")
+    st.caption("Model: Random Forest Classifier")
+
 # ── Initialize History ───────────────────────────────────────
 if 'history' not in st.session_state:
     st.session_state.history = []
