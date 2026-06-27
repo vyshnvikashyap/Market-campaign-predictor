@@ -1,17 +1,24 @@
 # 🏦 Bank Deposit Subscription Predictor
 
-Predicts whether a customer will subscribe to a term deposit using Machine Learning.
+A machine learning web app that predicts whether a bank customer will subscribe to a term deposit, built on the UCI Bank Marketing dataset.
+
+## 🎯 Problem Statement
+Banks run expensive telemarketing campaigns. This model helps identify which customers are most likely to subscribe — reducing wasted calls and improving conversion rates.
+
+## 🛠️ Tech Stack
+- **Model:** Random Forest Classifier
+- **Explainability:** SHAP values
+- **Deployment:** Streamlit Cloud
+- **Dataset:** UCI Bank Marketing Dataset
+
+## 📊 Features
+- End-to-end EDA and preprocessing
+- Feature engineering on 45,000+ customer records
+- SHAP explainability — understand why each prediction was made
+- Lead tiering — rank customers by conversion probability
+- Batch upload support
 
 ## 🚀 Live Demo
-[Click here to open the app]
-(https://market-campaign-predictor-qr89ch64e25cjnv4zztlcr.streamlit.app/)
+https://market-campaign-predictor-qr89ch64e25cjnv4zztlcr.streamlit.app/
 
-## 🤖 Model
-- Algorithm: Random Forest (100 trees)
-- Accuracy: 85.8%
-- ROC AUC: 91.9%
-
-## 📊 Dataset
-- Source: Bank Marketing Dataset
-- Rows: 11,162
-- Features: 49 (after encoding)
+## 📁 Project Structure
